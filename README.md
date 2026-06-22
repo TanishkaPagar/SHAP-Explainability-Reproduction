@@ -14,6 +14,7 @@ classifier.
 
 ## 📂 Project Structure
 
+```
 SHAP-Explainability-Reproduction/
 │
 ├── data/
@@ -29,8 +30,7 @@ SHAP-Explainability-Reproduction/
 ├── shap_reproduction.py          # Main Python script
 ├── requirements.txt              # Dependencies
 └── README.md                     # Project documentation
-
----
+```
 
 ## 🧠 What is SHAP?
 SHAP assigns each feature an importance value for a specific prediction,
