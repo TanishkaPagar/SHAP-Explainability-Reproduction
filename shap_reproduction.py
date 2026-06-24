@@ -253,10 +253,14 @@ print("(Reproducing Figure 3 from the paper)")
 print("=" * 60)
 
 def get_kernel_shap_estimate(model, X_train, X_test_single, nsamples):
-    background = shap.sample(X_train, 50)
+    background = shap.sample(pd.DataFrame(X_train), 50)
     explainer = shap.KernelExplainer(model.predict, background)
-    shap_vals = explainer.shap_values(X_test_single, nsamples=nsamples, silent=True)
-    return shap_vals[0]
+    shap_vals = explainer.shap_values(
+        pd.DataFrame(X_test_single.reshape(1, -1)),
+        nsamples=nsamples,
+        silent=True
+    )
+    return np.array(shap_vals)[0]
 
 def get_lime_estimate(model, X_train, X_test_single, n_samples):
     explainer = LimeTabularExplainer(
@@ -430,11 +434,9 @@ def max_model(X):
     return np.max(X, axis=1).astype(float)
 
 players = np.array([[5, 4, 0]])
-background_max = np.array([
-    [0, 0, 0], [5, 0, 0], [0, 4, 0],
-    [0, 0, 3], [5, 4, 0], [5, 0, 3],
-    [0, 4, 3], [5, 4, 3]
-], dtype=float)
+# Larger background for better SHAP estimation
+np.random.seed(42)
+background_max = np.random.randint(0, 6, size=(50, 3)).astype(float)
 
 max_explainer = shap.KernelExplainer(max_model, background_max)
 max_shap = max_explainer.shap_values(players, nsamples=512, silent=True)
