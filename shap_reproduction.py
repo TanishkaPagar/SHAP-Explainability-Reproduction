@@ -116,15 +116,10 @@ kernel_explainer = shap.KernelExplainer(model_predict, background.values)
 X_test_small = X_test.iloc[:20]
 kernel_shap_values = kernel_explainer.shap_values(X_test_small.values, nsamples=100)
 
-# kernel_shap_values is a list [class_0, class_1] - we take class_1 (survived)
-# kernel_shap_values shape: [n_classes, n_samples, n_features]
+# kernel_shap_values shape: (n_samples, n_features, n_classes)
 kernel_arr_s4 = np.array(kernel_shap_values)
 kernel_shap_class1 = kernel_arr_s4[:, :, 1]
-print(f"Kernel SHAP class1 shape: {kernel_shap_class1.shape}")
-print(f"kernel_shap_values type: {type(kernel_shap_values)}")
-print(f"kernel_shap_values length: {len(kernel_shap_values)}")
-print(f"kernel_shap_values[0] shape: {np.array(kernel_shap_values[0]).shape}")
-print(f"Kernel SHAP values shape: {kernel_shap_class1.shape}")
+
 print(f"Base value (class 1): {kernel_explainer.expected_value[1]:.4f}")
 print(f"\nKernel SHAP values for first passenger:")
 for feat, val in zip(X_test.columns, kernel_shap_class1[0]):
@@ -212,13 +207,10 @@ tree_importance = pd.Series(
     index=X_test.columns
 ).sort_values(ascending=False)
 
-# Fix kernel SHAP shape issue
+# Extract class 1 (Survived) SHAP values
+# Shape is (n_samples, n_features, n_classes) - take last dimension index 1
 kernel_arr = np.array(kernel_shap_values)
-print(f"kernel_arr shape: {kernel_arr.shape}")
-# Shape is (20, 7, 2) - samples, features, classes
-# Take class 1 (survived) from last dimension
 kernel_shap_fixed = kernel_arr[:, :, 1]
-print(f"kernel_shap_fixed shape: {kernel_shap_fixed.shape}")
 
 kernel_importance = pd.Series(
     np.abs(kernel_shap_fixed).mean(axis=0),
@@ -240,7 +232,7 @@ plt.suptitle('Tree SHAP vs Kernel SHAP Feature Importance',
 plt.tight_layout()
 plt.savefig('outputs/tree_vs_kernel_shap.png', dpi=150, bbox_inches='tight')
 plt.close()
-print("Saved: outputs/tree_vs_kernel_shap.png")    
+print("Saved: outputs/tree_vs_kernel_shap.png")
 
 # ============================================================
 # SECTION 7: SECTION 5.1 FROM PAPER
