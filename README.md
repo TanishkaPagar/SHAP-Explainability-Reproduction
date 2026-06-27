@@ -22,7 +22,7 @@ Section 5 of the paper, and demonstrates Deep SHAP on MNIST digit classification
 SHAP-Explainability-Reproduction/
 │
 ├── data/
-│ └── adult_income.csv # Adult Income dataset (45222 rows, 13 features)
+│ └── adult_income.csv  # Adult Income dataset (45222 rows, 13 features)
 │
 ├── outputs/
 │ ├── summary_plot.png # Global feature importance (beeswarm)
