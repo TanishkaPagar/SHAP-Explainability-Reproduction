@@ -19,26 +19,26 @@ Section 5 of the paper, and demonstrates Deep SHAP on MNIST digit classification
 ---
 
 ## 📂 Project Structure
+
 SHAP-Explainability-Reproduction/
 │
 ├── data/
-│ └── adult_income.csv  # Adult Income dataset (45222 rows, 13 features)
+│   └── adult_income.csv             # Adult Income dataset (45222 rows, 13 features)
 │
 ├── outputs/
-│ ├── summary_plot.png # Global feature importance (beeswarm)
-│ ├── bar_plot.png # Mean absolute SHAP values
-│ ├── waterfall_plot.png # Single prediction explanation
-│ ├── dependence_plot_age.png # SHAP dependence plot for Age
-│ ├── tree_vs_kernel_shap.png # Tree SHAP vs Kernel SHAP comparison
-│ ├── section51_convergence.png # Figure 3 reproduction - convergence
-│ ├── section52_human_studies.png # Figure 4 reproduction - human studies
-│ ├── section53_mnist_deepshap.png # Section 5.3 - Deep SHAP on MNIST
-│ └── shap_vs_lime_vs_xgb.png # Full method comparison plot
+│   ├── summary_plot.png             # Global feature importance (beeswarm)
+│   ├── bar_plot.png                 # Mean absolute SHAP values
+│   ├── waterfall_plot.png           # Single prediction explanation
+│   ├── dependence_plot_age.png      # SHAP dependence plot for Age
+│   ├── tree_vs_kernel_shap.png      # Tree SHAP vs Kernel SHAP comparison
+│   ├── section51_convergence.png    # Figure 3 reproduction - convergence
+│   ├── section52_human_studies.png  # Figure 4 reproduction - human studies
+│   ├── section53_mnist_deepshap.png # Section 5.3 - Deep SHAP on MNIST
+│   └── shap_vs_lime_vs_xgb.png     # Full method comparison plot
 │
-├── shap_reproduction.py # Main Python script (10 sections)
-├── requirements.txt # Project dependencies
-└── README.md # Project documentation
-
+├── shap_reproduction.py             # Main Python script (10 sections)
+├── requirements.txt                 # Project dependencies
+└── README.md                        # Project documentation
 
 ---
 
