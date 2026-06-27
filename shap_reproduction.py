@@ -17,7 +17,7 @@ from xgboost import XGBClassifier
 from sklearn.tree import DecisionTreeRegressor
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, classification_report
-from sklearn.preprocessing import LabelEncoder
+from sklearn.preprocessing import LabelEncoder, OrdinalEncoder
 from sklearn.datasets import make_regression
 from lime.lime_tabular import LimeTabularExplainer
 import time
@@ -25,34 +25,46 @@ import time
 print("All libraries imported successfully!")
 
 # ============================================================
-# SECTION 1: LOAD & PREPROCESS TITANIC DATA
+# SECTION 1: LOAD & PREPROCESS ADULT INCOME DATA
 # ============================================================
 
 print("\n" + "=" * 60)
-print("SECTION 1: Loading and Preprocessing Titanic Dataset")
+print("SECTION 1: Loading and Preprocessing Adult Income Dataset")
 print("=" * 60)
 
-df = pd.read_csv('data/titanic.csv')
+df = pd.read_csv('data/adult_income.csv')
 print(f"Dataset shape: {df.shape}")
+print(f"Columns: {list(df.columns)}")
 
-df.drop(columns=['Name', 'Ticket', 'Cabin', 'PassengerId'], inplace=True)
-df['Age'].fillna(df['Age'].median(), inplace=True)
-df['Embarked'].fillna(df['Embarked'].mode()[0], inplace=True)
-df['Fare'].fillna(df['Fare'].median(), inplace=True)
+# Drop rows with missing values (marked as '?')
+df = df.replace('?', np.nan).dropna()
+print(f"After dropping missing values: {df.shape}")
 
-le = LabelEncoder()
-df['Sex'] = le.fit_transform(df['Sex'])
-df['Embarked'] = le.fit_transform(df['Embarked'])
+# Encode target
+df['class'] = (df['class'] == '>50K').astype(int)
+
+# Drop less useful columns
+df.drop(columns=['fnlwgt', 'education'], inplace=True)
+
+# Encode categorical columns
+cat_cols = ['workclass', 'marital-status', 'occupation',
+            'relationship', 'race', 'sex', 'native-country']
+
+oe = OrdinalEncoder()
+df[cat_cols] = oe.fit_transform(df[cat_cols])
 
 print(f"Preprocessed shape: {df.shape}")
-print(f"Class distribution:\n{df['Survived'].value_counts()}")
+print(f"Class distribution:\n{df['class'].value_counts()}")
 
-X = df.drop('Survived', axis=1)
-y = df['Survived']
+X = df.drop('class', axis=1)
+y = df['class']
 
 X_train, X_test, y_train, y_test = train_test_split(
     X, y, test_size=0.2, random_state=42, stratify=y
 )
+
+print(f"\nTrain size: {X_train.shape}")
+print(f"Test size: {X_test.shape}")
 
 # ============================================================
 # SECTION 2: TRAIN XGBOOST MODEL
@@ -89,12 +101,12 @@ tree_shap_values = tree_explainer.shap_values(X_test)
 
 print(f"Tree SHAP values shape: {tree_shap_values.shape}")
 print(f"Base value: {tree_explainer.expected_value:.4f}")
-print(f"\nTree SHAP values for first passenger:")
+print(f"\nTree SHAP values for first person:")
 for feat, val in zip(X_test.columns, tree_shap_values[0]):
-    print(f"  {feat:12s}: {val:+.4f}")
+    print(f"  {feat:20s}: {val:+.4f}")
 
 # ============================================================
-# SECTION 4: KERNEL SHAP (KernelExplainer) - PROPER IMPLEMENTATION
+# SECTION 4: KERNEL SHAP (KernelExplainer)
 # ============================================================
 
 print("\n" + "=" * 60)
@@ -116,14 +128,14 @@ kernel_explainer = shap.KernelExplainer(model_predict, background.values)
 X_test_small = X_test.iloc[:20]
 kernel_shap_values = kernel_explainer.shap_values(X_test_small.values, nsamples=100)
 
-# kernel_shap_values shape: (n_samples, n_features, n_classes)
-kernel_arr_s4 = np.array(kernel_shap_values)
-kernel_shap_class1 = kernel_arr_s4[:, :, 1]
+# Extract class 1 (income >50K) SHAP values
+kernel_arr = np.array(kernel_shap_values)
+kernel_shap_class1 = kernel_arr[:, :, 1]
 
 print(f"Base value (class 1): {kernel_explainer.expected_value[1]:.4f}")
-print(f"\nKernel SHAP values for first passenger:")
+print(f"\nKernel SHAP values for first person:")
 for feat, val in zip(X_test.columns, kernel_shap_class1[0]):
-    print(f"  {feat:12s}: {val:+.4f}")
+    print(f"  {feat:20s}: {val:+.4f}")
 
 # ============================================================
 # SECTION 5: VERIFY LOCAL ACCURACY PROPERTY (FROM PAPER)
@@ -142,7 +154,7 @@ for i in range(3):
         xgboost.DMatrix(X_test.iloc[[i]]), output_margin=True
     )[0]
 
-    print(f"\nPassenger {i+1}:")
+    print(f"\nPerson {i+1}:")
     print(f"  Base value              : {base_val:.4f}")
     print(f"  Sum of SHAP values      : {shap_sum:.4f}")
     print(f"  Base + SHAP (reproduced): {shap_prediction:.4f}")
@@ -160,7 +172,7 @@ print("=" * 60)
 # --- Plot 1: Summary Plot ---
 plt.figure()
 shap.summary_plot(tree_shap_values, X_test, show=False)
-plt.title("SHAP Summary Plot - Global Feature Importance")
+plt.title("SHAP Summary Plot - Global Feature Importance\nAdult Income Dataset")
 plt.tight_layout()
 plt.savefig('outputs/summary_plot.png', dpi=150, bbox_inches='tight')
 plt.close()
@@ -169,7 +181,7 @@ print("Saved: outputs/summary_plot.png")
 # --- Plot 2: Bar Plot ---
 plt.figure()
 shap.summary_plot(tree_shap_values, X_test, plot_type="bar", show=False)
-plt.title("SHAP Feature Importance (Mean |SHAP|)")
+plt.title("SHAP Feature Importance (Mean |SHAP|)\nAdult Income Dataset")
 plt.tight_layout()
 plt.savefig('outputs/bar_plot.png', dpi=150, bbox_inches='tight')
 plt.close()
@@ -184,7 +196,7 @@ shap_explanation = shap.Explanation(
 )
 plt.figure()
 shap.plots.waterfall(shap_explanation, show=False)
-plt.title("SHAP Waterfall Plot - Passenger 1")
+plt.title("SHAP Waterfall Plot - Person 1")
 plt.tight_layout()
 plt.savefig('outputs/waterfall_plot.png', dpi=150, bbox_inches='tight')
 plt.close()
@@ -192,7 +204,7 @@ print("Saved: outputs/waterfall_plot.png")
 
 # --- Plot 4: Dependence Plot ---
 plt.figure()
-shap.dependence_plot('Age', tree_shap_values, X_test, show=False)
+shap.dependence_plot('age', tree_shap_values, X_test, show=False)
 plt.title("SHAP Dependence Plot - Age")
 plt.tight_layout()
 plt.savefig('outputs/dependence_plot_age.png', dpi=150, bbox_inches='tight')
@@ -207,13 +219,8 @@ tree_importance = pd.Series(
     index=X_test.columns
 ).sort_values(ascending=False)
 
-# Extract class 1 (Survived) SHAP values
-# Shape is (n_samples, n_features, n_classes) - take last dimension index 1
-kernel_arr = np.array(kernel_shap_values)
-kernel_shap_fixed = kernel_arr[:, :, 1]
-
 kernel_importance = pd.Series(
-    np.abs(kernel_shap_fixed).mean(axis=0),
+    np.abs(kernel_shap_class1).mean(axis=0),
     index=X_test.columns.tolist()
 ).sort_values(ascending=False)
 
@@ -227,7 +234,7 @@ axes[1].set_title('Kernel SHAP\n(KernelExplainer)', fontsize=12)
 axes[1].set_xlabel('Mean |SHAP value|')
 axes[1].invert_yaxis()
 
-plt.suptitle('Tree SHAP vs Kernel SHAP Feature Importance',
+plt.suptitle('Tree SHAP vs Kernel SHAP Feature Importance\nAdult Income Dataset',
              fontsize=13, fontweight='bold')
 plt.tight_layout()
 plt.savefig('outputs/tree_vs_kernel_shap.png', dpi=150, bbox_inches='tight')
@@ -253,6 +260,14 @@ def get_kernel_shap_estimate(model, X_train, X_test_single, nsamples):
         silent=True
     )
     return np.array(shap_vals)[0]
+
+def get_shapley_sampling_estimate(model, X_train, X_test_single, nsamples):
+    background = shap.sample(pd.DataFrame(X_train), 50)
+    explainer = shap.explainers.Sampling(model.predict, background)
+    shap_vals = explainer(
+        pd.DataFrame(X_test_single.reshape(1, -1))
+    )
+    return shap_vals.values[0]
 
 def get_lime_estimate(model, X_train, X_test_single, n_samples):
     explainer = LimeTabularExplainer(
@@ -285,7 +300,6 @@ y_dense_train = y_dense[:800]
 dense_model = DecisionTreeRegressor(max_depth=6, random_state=42)
 dense_model.fit(X_dense_train, y_dense_train)
 
-# True SHAP values using full KernelExplainer as reference
 background_dense = shap.sample(pd.DataFrame(X_dense_train), 100)
 true_explainer_dense = shap.KernelExplainer(
     dense_model.predict, background_dense
@@ -296,19 +310,25 @@ true_shap_dense = true_explainer_dense.shap_values(
 
 sample_sizes = [50, 100, 200, 300, 500]
 shap_errors_dense = []
+shapley_errors_dense = []
 lime_errors_dense = []
 
 for n in sample_sizes:
     shap_est = get_kernel_shap_estimate(
         dense_model, X_dense_train, X_dense_test[0], n
     )
+    shapley_est = get_shapley_sampling_estimate(
+        dense_model, X_dense_train, X_dense_test[0], n
+    )
     lime_est = get_lime_estimate(
         dense_model, X_dense_train, X_dense_test[0], n
     )
     shap_errors_dense.append(np.mean(np.abs(shap_est - true_shap_dense)))
+    shapley_errors_dense.append(np.mean(np.abs(shapley_est - true_shap_dense)))
     lime_errors_dense.append(np.mean(np.abs(lime_est - true_shap_dense)))
-    print(f"  n={n}: SHAP error={shap_errors_dense[-1]:.4f}, "
-          f"LIME error={lime_errors_dense[-1]:.4f}")
+    print(f"  n={n}: SHAP={shap_errors_dense[-1]:.4f}, "
+          f"Shapley={shapley_errors_dense[-1]:.4f}, "
+          f"LIME={lime_errors_dense[-1]:.4f}")
 
 # --- Sparse Model (100 features, only 3 matter) ---
 print("\nRunning Sparse Model experiment (100 features, 3 informative)...")
@@ -329,24 +349,31 @@ true_shap_sparse = true_explainer_sparse.shap_values(
 )[0]
 
 shap_errors_sparse = []
+shapley_errors_sparse = []
 lime_errors_sparse = []
 
 for n in sample_sizes:
     shap_est = get_kernel_shap_estimate(
         sparse_model, X_sparse_train, X_sparse_test[0], n
     )
+    shapley_est = get_shapley_sampling_estimate(
+        sparse_model, X_sparse_train, X_sparse_test[0], n
+    )
     lime_est = get_lime_estimate(
         sparse_model, X_sparse_train, X_sparse_test[0], n
     )
     shap_errors_sparse.append(np.mean(np.abs(shap_est - true_shap_sparse)))
+    shapley_errors_sparse.append(np.mean(np.abs(shapley_est - true_shap_sparse)))
     lime_errors_sparse.append(np.mean(np.abs(lime_est - true_shap_sparse)))
-    print(f"  n={n}: SHAP error={shap_errors_sparse[-1]:.4f}, "
-          f"LIME error={lime_errors_sparse[-1]:.4f}")
+    print(f"  n={n}: SHAP={shap_errors_sparse[-1]:.4f}, "
+          f"Shapley={shapley_errors_sparse[-1]:.4f}, "
+          f"LIME={lime_errors_sparse[-1]:.4f}")
 
 # --- Plot Section 5.1 ---
 fig, axes = plt.subplots(1, 2, figsize=(14, 5))
 
 axes[0].plot(sample_sizes, shap_errors_dense, 'b-o', label='Kernel SHAP')
+axes[0].plot(sample_sizes, shapley_errors_dense, 'r-o', label='Shapley Sampling')
 axes[0].plot(sample_sizes, lime_errors_dense, 'g-o', label='LIME')
 axes[0].set_title('(A) Dense Model\n(10 features, all informative)', fontsize=12)
 axes[0].set_xlabel('Number of model evaluations')
@@ -355,6 +382,7 @@ axes[0].legend()
 axes[0].grid(True, alpha=0.3)
 
 axes[1].plot(sample_sizes, shap_errors_sparse, 'b-o', label='Kernel SHAP')
+axes[1].plot(sample_sizes, shapley_errors_sparse, 'r-o', label='Shapley Sampling')
 axes[1].plot(sample_sizes, lime_errors_sparse, 'g-o', label='LIME')
 axes[1].set_title('(B) Sparse Model\n(100 features, 3 informative)', fontsize=12)
 axes[1].set_xlabel('Number of model evaluations')
@@ -362,13 +390,13 @@ axes[1].set_ylabel('Mean absolute error from true SHAP')
 axes[1].legend()
 axes[1].grid(True, alpha=0.3)
 
-plt.suptitle('Section 5.1: Kernel SHAP vs LIME Convergence\n'
+plt.suptitle('Section 5.1: Kernel SHAP vs Shapley Sampling vs LIME\n'
              '(Reproduction of Figure 3 from Lundberg & Lee, NIPS 2017)',
              fontsize=13, fontweight='bold')
 plt.tight_layout()
 plt.savefig('outputs/section51_convergence.png', dpi=150, bbox_inches='tight')
 plt.close()
-print("\nSaved: outputs/section51_convergence.png")
+print("\nSaved: outputs/section51_convergence.png")    
 
 # ============================================================
 # SECTION 8: SECTION 5.2 FROM PAPER
@@ -396,8 +424,7 @@ def sickness_model(X):
             results.append(0)
     return np.array(results)
 
-# Patient has both fever and cough
-patient = np.array([[1, 1, 0]])  # fever=1, cough=1, congestion=0
+patient = np.array([[1, 1, 0]])
 background_sickness = np.array([
     [0, 0, 0], [1, 0, 0], [0, 1, 0],
     [1, 1, 0], [0, 0, 1], [1, 0, 1]
@@ -407,7 +434,7 @@ sick_explainer = shap.KernelExplainer(sickness_model, background_sickness)
 sick_shap = sick_explainer.shap_values(patient, nsamples=512, silent=True)
 
 feature_names_sick = ['Fever', 'Cough', 'Congestion']
-human_values_sick = [0.5, 0.5, 0.0]  # Human intuition from paper
+human_values_sick = [0.5, 0.5, 0.0]
 
 print(f"\nPatient: Fever=1, Cough=1, Congestion=0")
 print(f"Model output: {sickness_model(patient)[0]}")
@@ -426,7 +453,6 @@ def max_model(X):
     return np.max(X, axis=1).astype(float)
 
 players = np.array([[5, 4, 0]])
-# Larger background for better SHAP estimation
 np.random.seed(42)
 background_max = np.random.randint(0, 6, size=(50, 3)).astype(float)
 
@@ -434,7 +460,7 @@ max_explainer = shap.KernelExplainer(max_model, background_max)
 max_shap = max_explainer.shap_values(players, nsamples=512, silent=True)
 
 feature_names_max = ['Man 1 (5pts)', 'Man 2 (4pts)', 'Man 3 (0pts)']
-human_values_max = [3.0, 1.5, 0.0]  # Approximate human intuition from paper
+human_values_max = [3.0, 1.5, 0.0]
 
 print(f"\nPlayers: Man1=5, Man2=4, Man3=0 → Profit=$5")
 print(f"\nFeature attributions:")
@@ -477,11 +503,110 @@ plt.close()
 print("\nSaved: outputs/section52_human_studies.png")
 
 # ============================================================
-# SECTION 9: SHAP vs LIME vs XGBoost Comparison
+# SECTION 9: MNIST EXPERIMENT (Section 5.3 from Paper)
+# Deep SHAP using DeepExplainer
 # ============================================================
 
 print("\n" + "=" * 60)
-print("SECTION 9: SHAP vs LIME vs XGBoost Feature Importance")
+print("SECTION 9: MNIST Experiment - Deep SHAP")
+print("(Reproducing Section 5.3 from the paper)")
+print("=" * 60)
+
+try:
+    import tensorflow as tf
+    from tensorflow import keras
+
+    print("Loading MNIST dataset...")
+    (X_mnist_train, y_mnist_train), (X_mnist_test, y_mnist_test) = \
+        keras.datasets.mnist.load_data()
+
+    X_mnist_train = X_mnist_train.astype('float32') / 255.0
+    X_mnist_test = X_mnist_test.astype('float32') / 255.0
+    X_mnist_train = X_mnist_train.reshape(-1, 28, 28, 1)
+    X_mnist_test = X_mnist_test.reshape(-1, 28, 28, 1)
+
+    print(f"Train shape: {X_mnist_train.shape}")
+    print(f"Test shape: {X_mnist_test.shape}")
+
+    print("\nBuilding and training CNN...")
+    mnist_model = keras.Sequential([
+        keras.layers.Conv2D(32, (3,3), activation='relu',
+                           input_shape=(28,28,1)),
+        keras.layers.MaxPooling2D((2,2)),
+        keras.layers.Conv2D(64, (3,3), activation='relu'),
+        keras.layers.MaxPooling2D((2,2)),
+        keras.layers.Flatten(),
+        keras.layers.Dense(64, activation='relu'),
+        keras.layers.Dense(10, activation='softmax')
+    ])
+
+    mnist_model.compile(optimizer='adam',
+                        loss='sparse_categorical_crossentropy',
+                        metrics=['accuracy'])
+
+    mnist_model.fit(X_mnist_train, y_mnist_train,
+                    epochs=3, batch_size=128,
+                    validation_split=0.1, verbose=1)
+
+    test_loss, test_acc = mnist_model.evaluate(
+        X_mnist_test, y_mnist_test, verbose=0
+    )
+    print(f"\nMNIST CNN Test Accuracy: {test_acc:.4f}")
+
+    print("\nComputing Deep SHAP values...")
+    background_mnist = X_mnist_train[:100]
+    deep_explainer = shap.DeepExplainer(mnist_model, background_mnist)
+
+    test_images = X_mnist_test[:5]
+    deep_shap_values = deep_explainer.shap_values(test_images)
+
+    # Understand structure
+    deep_shap_arr = np.array(deep_shap_values)
+    print(f"Deep SHAP array shape: {deep_shap_arr.shape}")
+
+    # Plot
+    fig, axes = plt.subplots(2, 5, figsize=(15, 6))
+
+    for i in range(5):
+        axes[0, i].imshow(test_images[i].reshape(28, 28), cmap='gray')
+        axes[0, i].set_title(f'Digit: {y_mnist_test[i]}')
+        axes[0, i].axis('off')
+
+        pred_class = int(np.argmax(mnist_model.predict(
+            test_images[i:i+1], verbose=0
+        )))
+
+        # Shape is (5, 28, 28, 1, 10) - samples, h, w, channels, classes
+        shap_img = deep_shap_arr[i, :, :, 0, pred_class]
+
+        axes[1, i].imshow(shap_img, cmap='RdBu',
+                          vmin=-np.abs(shap_img).max(),
+                          vmax=np.abs(shap_img).max())
+        axes[1, i].set_title(f'Pred: {pred_class}')
+        axes[1, i].axis('off')
+
+    axes[0, 0].set_ylabel('Input', fontsize=11)
+    axes[1, 0].set_ylabel('SHAP', fontsize=11)
+
+    plt.suptitle('Section 5.3: Deep SHAP on MNIST\n'
+                 'Red=increases prediction, Blue=decreases prediction',
+                 fontsize=13, fontweight='bold')
+    plt.tight_layout()
+    plt.savefig('outputs/section53_mnist_deepshap.png',
+                dpi=150, bbox_inches='tight')
+    plt.close()
+    print("Saved: outputs/section53_mnist_deepshap.png")
+
+except ImportError:
+    print("TensorFlow not installed. Skipping MNIST experiment.")
+    print("Install with: pip install tensorflow")
+
+# ============================================================
+# SECTION 10: SHAP vs LIME vs XGBoost Comparison
+# ============================================================
+
+print("\n" + "=" * 60)
+print("SECTION 10: SHAP vs LIME vs XGBoost Feature Importance")
 print("=" * 60)
 
 shap_importance = pd.Series(
@@ -497,7 +622,7 @@ xgb_importance = pd.Series(
 lime_explainer = LimeTabularExplainer(
     X_train.values,
     feature_names=X_train.columns.tolist(),
-    class_names=['Not Survived', 'Survived'],
+    class_names=['<=50K', '>50K'],
     mode='classification'
 )
 
@@ -518,7 +643,7 @@ lime_importance = pd.Series(
     index=X_test.columns
 ).sort_values(ascending=False)
 
-fig, axes = plt.subplots(1, 3, figsize=(16, 5))
+fig, axes = plt.subplots(1, 3, figsize=(18, 6))
 
 shap_importance.plot(kind='barh', ax=axes[0], color='steelblue')
 axes[0].set_title('SHAP Importance\n(Mean |SHAP Value|)', fontsize=12)
@@ -535,7 +660,7 @@ axes[2].set_title('LIME Importance\n(Avg over 20 samples)', fontsize=12)
 axes[2].set_xlabel('Importance')
 axes[2].invert_yaxis()
 
-plt.suptitle('Comparison: SHAP vs XGBoost vs LIME Feature Importance',
+plt.suptitle('Comparison: SHAP vs XGBoost vs LIME\nAdult Income Dataset',
              fontsize=13, fontweight='bold', y=1.02)
 plt.tight_layout()
 plt.savefig('outputs/shap_vs_lime_vs_xgb.png', dpi=150, bbox_inches='tight')
